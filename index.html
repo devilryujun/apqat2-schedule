@@ -75,13 +75,20 @@
                         const data = await response.json();
                         
                         let gate = "확인중";
-                        let passenger = "착륙 전";
-                        
-                        if(data && data.response && data.response.body && data.response.body.items && data.response.body.items.length > 0) {
-                            const targetData = data.response.body.items[0];
-                            gate = targetData.gatenumber || "확인중";
-                            passenger = targetData.passengerCount || "집계중";
-                        }
+let passenger = "조회 불가"; // 기본값을 '착륙 전'에서 '조회 불가'로 변경
+
+if(data && data.response && data.response.body && data.response.body.items && data.response.body.items.length > 0) {
+    const targetData = data.response.body.items[0];
+    gate = targetData.gatenumber || "확인중";
+    
+    // 만약 API에서 주는 passengerCount 값이 빈칸이거나 없으면 '집계중/지연'으로 표시
+    if (!targetData.passengerCount || targetData.passengerCount.trim() === "") {
+        passenger = "집계중/지연"; 
+    } else {
+        passenger = targetData.passengerCount;
+    }
+}
+
                         
                         const cardHtml = `
                             <div class="result-card">
