@@ -28,7 +28,6 @@
         <div class="header-title">휴대 검역 일정 실시간 조회</div>
         <div class="sub-title">입국장 통과 전 일제검사 대상 승객수를 확인합니다.</div>
         
-        <!-- 실시간 새로고침 버튼 추가! -->
         <button class="refresh-btn" onclick="fetchFlightData()">🔄 실시간 새로고침</button>
         
         <div id="today-badge" class="today-info">오늘의 대상편을 불러오는 중...</div>
@@ -44,14 +43,13 @@
             "화": [],
             "수": [],
             "목": [],
-            "금": ["KE842", "KE832", "OZ304", "KE116", "KE2042", "OZ340", "KE834"], 
-            "토": ["KE498", "OZ740", "GA878", "KE832", "OZ304", "KL855", "OZ340", "LJ350"],
-            "일": ["OZ568", "KE428", "KE656", "OZ302", "KE964", "KE116", "OZ340", "KE834"]
+            "금": ["KE442", "OZ732"], 
+            "토": ["VN416"],
+            "일": []
         };
         
         const API_KEY = "JcfNlXoduLGoJddjGco5oTFV3eEWqmoP4fZsQ0mDYZgRQBANOV3qUTfqV0z2hkEojn7K5eNYr3AIkzKvhJRs4w%3D%3D";
         
-        // JSON 데이터 안에서 대소문자나 키 이름이 조금 달라도 찰떡같이 찾아내는 만능 함수
         function findVal(obj, keys) {
             for (let k of keys) {
                 let found = Object.keys(obj).find(key => key.toLowerCase() === k.toLowerCase());
@@ -65,7 +63,7 @@
             const loading = document.getElementById("loading");
             const badge = document.getElementById("today-badge");
             
-            container.innerHTML = ""; // 새로고침 시 기존 데이터 초기화
+            container.innerHTML = ""; 
             loading.style.display = "block";
             
             try {
@@ -82,49 +80,75 @@
                     return;
                 }
                 
-                // 직접 찾아내신 완벽한 주소 적용! (-2 ~ +2시간 이내의 모든 비행기를 한 번에 가져옵니다)
-                // (※ 혹시 데이터가 아예 안 뜬다면 주소 끝을 StatusOfArrivals/getArrivals 로 수정해 보세요!)
-                let url = `https://apis.data.go.kr/B551177/StatusOfArrivals?serviceKey=${API_KEY}&type=json&numOfRows=1000`;
-                
-                const response = await fetch(url);
-                const data = await response.json();
+                // 1. 실시간 입국장 승객수 API 호출
+                let urlArrivals = `https://apis.data.go.kr/B551177/StatusOfArrivals?serviceKey=${API_KEY}&type=json&numOfRows=1000`;
+                const responseArrivals = await fetch(urlArrivals);
+                const dataArrivals = await responseArrivals.json();
                 
                 let items = [];
-                if(data && data.response && data.response.body && data.response.body.items) {
-                    let rawItems = data.response.body.items;
-                    // 데이터가 1개일 때와 여러 개일 때를 모두 안전하게 처리
-                    if (!Array.isArray(rawItems)) {
-                        items = rawItems.item ? (Array.isArray(rawItems.item) ? rawItems.item : [rawItems.item]) : [rawItems];
-                    } else {
-                        items = rawItems;
-                    }
+                if(dataArrivals && dataArrivals.response && dataArrivals.response.body && dataArrivals.response.body.items) {
+                    let rawItems = dataArrivals.response.body.items;
+                    items = Array.isArray(rawItems) ? rawItems : (rawItems.item ? (Array.isArray(rawItems.item) ? rawItems.item : [rawItems.item]) : [rawItems]);
                 }
                 
+                // 2. 현재 시간 구하기 (HHMM 형식, 예: 오후 2시 5분 -> "1405")
+                let currentHour = today.getHours().toString().padStart(2, '0');
+                let currentMin = today.getMinutes().toString().padStart(2, '0');
+                let currentTime = currentHour + currentMin;
+
                 for (let flightNo of targetFlights) {
-                    // 전체 비행기 목록 중에서 우리가 원하는 편명만 쏙 골라냅니다.
+                    let passengerText = "";
+                    let gate = "확인중";
+                    
+                    // 승객수 API 목록에서 현재 비행기 찾기
                     let targetData = items.find(item => {
                         let fId = (item.flightId || item.flight_id || item.flightNo || "").toUpperCase();
                         return fId.includes(flightNo.toUpperCase());
                     });
                     
-                    let gate = "확인중";
-                    let passengerText = "조회 불가 (도착 2시간 경과 또는 착륙 전)"; // 완벽한 안내 문구!
-                    
                     if (targetData) {
+                        // ① 승객수 API에 정보가 있을 때 (착륙 직후 ~ 통과 중)
                         gate = findVal(targetData, ["gatenumber", "gate", "arrgate", "exitgate"]) || "확인중";
-                        
-                        // 내국인, 외국인 숫자를 추출합니다!
                         let kr = findVal(targetData, ["korean", "koreancount", "krncnt"]);
                         let fr = findVal(targetData, ["foreigner", "foreignercount", "frgncnt"]);
                         
                         if (kr !== null && fr !== null) {
                             passengerText = `내국인 ${kr}명 / 외국인 ${fr}명`;
                         } else {
-                            // 혹시 구체적인 분리 숫자가 없을 경우를 대비한 안전장치
-                            passengerText = "집계중 (데이터 수신됨)";
+                            passengerText = "집계중";
+                        }
+                    } else {
+                        // ② 승객수 API에 정보가 없을 때 (착륙 전이거나, 이미 다 통과해서 사라진 경우)
+                        // 운항정보 API를 한 번 더 호출해서 '도착 예정 시간'을 알아냅니다.
+                        let urlFlight = `https://apis.data.go.kr/B551177/StatusOfPassengerFlightsDeOdp/getPassengerArrivalsDeOdp?serviceKey=${API_KEY}&type=json&flight_id=${flightNo}`;
+                        try {
+                            const resFlight = await fetch(urlFlight);
+                            const dataFlight = await resFlight.json();
+                            
+                            if (dataFlight.response && dataFlight.response.body && dataFlight.response.body.items && dataFlight.response.body.items.length > 0) {
+                                let flightInfo = dataFlight.response.body.items[0];
+                                gate = flightInfo.gatenumber || "확인중";
+                                // 도착 예정 시간 추출 (HHMM 형식)
+                                let arrivalTime = flightInfo.estimatedDateTime || flightInfo.scheduleDateTime || "2400";
+                                
+                                // 현재 시간과 도착 예정 시간을 비교하여 판별
+                                if (currentTime >= arrivalTime) {
+                                    // 이미 도착 시간이 지났는데 승객수 데이터가 없다면 = "모두 통과완료"
+                                    passengerText = "내국인 0명 / 외국인 0명";
+                                } else {
+                                    // 아직 도착 시간이 안 되었다면 = "착륙 전"
+                                    passengerText = "착륙 전";
+                                }
+                            } else {
+                                // 운항정보조차 없으면 기본값
+                                passengerText = "착륙 전";
+                            }
+                        } catch (e) {
+                            passengerText = "착륙 전";
                         }
                     }
                     
+                    // 화면에 출력
                     const cardHtml = `
                         <div class="result-card">
                             <div class="flight-info">
