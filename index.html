@@ -3,14 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>인천공항 일제검사 승객조회</title>
+    <title>인천공항 T2 일제검사 승객조회</title>
     <style>
         body { background-color: #1e2128; color: #ffffff; font-family: 'Malgun Gothic', sans-serif; padding: 20px; }
         .container { max-width: 500px; margin: 0 auto; }
         .header-title { font-size: 20px; font-weight: bold; margin-bottom: 5px; color: #e5e7eb; }
         .sub-title { font-size: 13px; color: #9ca3af; margin-bottom: 20px; }
-        .refresh-btn { display: block; width: 100%; padding: 15px; background-color: #3b82f6; color: white; border: none; border-radius: 8px; font-weight: bold; margin-bottom: 20px; cursor: pointer; font-size: 16px; box-shadow: 0 4px 6px rgba(0,0,0,0.2); }
-        .refresh-btn:active { background-color: #2563eb; transform: scale(0.98); }
         .today-info { display: inline-block; background-color: #374151; padding: 5px 12px; border-radius: 15px; font-size: 14px; margin-bottom: 15px; color: #60a5fa; font-weight: bold; }
         .result-card { background-color: #2a2d36; padding: 20px; border-radius: 12px; margin-bottom: 15px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); border: 1px solid #374151; }
         .flight-info { display: flex; justify-content: space-between; border-bottom: 1px solid #4b5563; padding-bottom: 15px; margin-bottom: 15px; }
@@ -19,25 +17,26 @@
         .value { font-size: 18px; font-weight: bold; }
         .passenger-box { background-color: #1e3a8a; padding: 15px; border-radius: 8px; text-align: center; }
         .passenger-label { font-size: 14px; color: #93c5fd; }
-        .passenger-count { font-size: 20px; font-weight: bold; color: white; margin-top: 5px; word-break: keep-all; }
-        #loading { text-align: center; color: #9ca3af; margin-top: 20px; font-weight: bold; }
+        .passenger-count { font-size: 22px; font-weight: bold; color: white; margin-top: 5px; }
+        .refresh-btn { width: 100%; padding: 14px; background-color: #2563eb; color: white; border: none; border-radius: 8px; font-weight: bold; font-size: 16px; cursor: pointer; margin-bottom: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.2); }
+        .refresh-btn:active { background-color: #1d4ed8; }
+        #loading { text-align: center; color: #9ca3af; margin-top: 20px; display: none; }
     </style>
 </head>
 <body>
     <div class="container">
-        <div class="header-title">휴대 검역 일정 실시간 조회</div>
-        <div class="sub-title">입국장 통과 전 일제검사 대상 승객수를 확인합니다.</div>
-        
+        <div class="header-title">T2 휴대 검역 일정 실시간 조회</div>
+        <div class="sub-title">제2여객터미널 입국장 통과 전 일제검사 대상 승객수를 확인합니다.</div>
+
         <button class="refresh-btn" onclick="fetchFlightData()">🔄 실시간 새로고침</button>
         
         <div id="today-badge" class="today-info">오늘의 대상편을 불러오는 중...</div>
-        
-        <div id="loading">데이터를 불러오는 중입니다... 잠시만 기다려주세요.</div>
+        <div id="loading">데이터를 실시간으로 불러오는 중입니다...</div>
         <div id="results-container"></div>
     </div>
 
     <script>
-        // ★★★ 주간 스케줄 입력칸 ★★★
+        // ★★★ 매주 스케줄 요일별 편명 수정하는 곳 ★★★
         const weeklySchedule = {
             "월": [],
             "화": [],
@@ -50,21 +49,6 @@
         
         const API_KEY = "JcfNlXoduLGoJddjGco5oTFV3eEWqmoP4fZsQ0mDYZgRQBANOV3qUTfqV0z2hkEojn7K5eNYr3AIkzKvhJRs4w%3D%3D";
         
-        function findVal(obj, keys) {
-            for (let k of keys) {
-                let found = Object.keys(obj).find(key => key.toLowerCase() === k.toLowerCase());
-                if (found && obj[found] !== null && obj[found] !== undefined) return obj[found];
-            }
-            return null;
-        }
-
-        function getArray(obj) {
-            if (!obj) return [];
-            if (Array.isArray(obj)) return obj;
-            if (obj.item) return Array.isArray(obj.item) ? obj.item : [obj.item];
-            return [obj];
-        }
-
         async function fetchFlightData() {
             const container = document.getElementById("results-container");
             const loading = document.getElementById("loading");
@@ -77,6 +61,7 @@
                 const days = ["일", "월", "화", "수", "목", "금", "토"];
                 const today = new Date();
                 const todayDayStr = days[today.getDay()];
+                
                 badge.innerText = `오늘은 ${todayDayStr}요일 입니다 ✈️`;
                 
                 const targetFlights = weeklySchedule[todayDayStr] || [];
@@ -87,83 +72,37 @@
                     return;
                 }
                 
-                // ★ 핵심 수정: 정확한 끝 주소 추가 및 T1, T2 동시에 모두 조회!
-                let urlT1 = `https://apis.data.go.kr/B551177/StatusOfArrivals/getArrivalsCongestion?serviceKey=${API_KEY}&type=json&terno=T1&numOfRows=1000`;
+                // T2 데이터만 1000개 가져옵니다.
                 let urlT2 = `https://apis.data.go.kr/B551177/StatusOfArrivals/getArrivalsCongestion?serviceKey=${API_KEY}&type=json&terno=T2&numOfRows=1000`;
                 
-                const [resT1, resT2] = await Promise.all([
-                    fetch(urlT1).catch(() => null),
-                    fetch(urlT2).catch(() => null)
-                ]);
+                const resT2 = await fetch(urlT2);
+                const dataT2 = await resT2.json();
                 
-                let items = [];
-                if (resT1) {
-                    let d1 = await resT1.json().catch(()=>({}));
-                    items = items.concat(getArray(d1?.response?.body?.items));
-                }
-                if (resT2) {
-                    let d2 = await resT2.json().catch(()=>({}));
-                    items = items.concat(getArray(d2?.response?.body?.items));
+                // T2 비행기 목록 세팅
+                let allFlights = [];
+                if(dataT2?.response?.body?.items) {
+                    allFlights = dataT2.response.body.items;
                 }
                 
-                // 현재 시간 (HHMM 형식)
-                let currentHour = today.getHours().toString().padStart(2, '0');
-                let currentMin = today.getMinutes().toString().padStart(2, '0');
-                let currentTime = currentHour + currentMin;
-
                 for (let flightNo of targetFlights) {
-                    let passengerText = "";
-                    let gate = "확인중";
                     
-                    let targetData = items.find(item => {
-                        let fId = (item.flightId || item.flightid || item.flight_id || item.flightNo || item.fltno || item.flight || "").toUpperCase();
-                        return fId.includes(flightNo.toUpperCase());
+                    const targetData = allFlights.find(item => {
+                        const itemString = JSON.stringify(item).toUpperCase();
+                        return itemString.includes(flightNo.toUpperCase());
                     });
                     
-                    if (targetData) {
-                        // ① T1, T2 전체 전광판에 승객수 데이터가 살아있을 때 (착륙 직후 ~ 통과 중)
-                        gate = findVal(targetData, ["gatenumber", "gate", "arrgate", "exitgate", "입국장게이트"]) || "확인중";
-                        let kr = findVal(targetData, ["korean", "koreancount", "krncnt", "koreancnt", "내국인"]);
-                        let fr = findVal(targetData, ["foreigner", "foreignercount", "frgncnt", "foreignercnt", "외국인"]);
+                    let gate = "확인중";
+                    let passengerStr = "조회 불가 (시간 초과/누락)";
+                    
+                    if(targetData) {
+                        gate = targetData.cgntArea || targetData.entGate || targetData.gateNo || "확인중";
                         
-                        if (kr !== null && fr !== null) {
-                            passengerText = `내국인 ${kr}명 / 외국인 ${fr}명`;
-                        } else {
-                            passengerText = "집계중";
-                        }
-                    } else {
-                        // ② 승객수 데이터가 아예 없을 때 (착륙 전이거나 완전 종료)
-                        let urlFlight = `https://apis.data.go.kr/B551177/StatusOfPassengerFlightsDeOdp/getPassengerArrivalsDeOdp?serviceKey=${API_KEY}&type=json&flight_id=${flightNo}`;
-                        try {
-                            const resFlight = await fetch(urlFlight);
-                            const dataFlight = await resFlight.json();
-                            
-                            let fItems = getArray(dataFlight?.response?.body?.items);
-                            
-                            if (fItems.length > 0) {
-                                let flightInfo = fItems[0];
-                                gate = flightInfo.gatenumber || "확인중";
-                                
-                                // 도착 예정 시간 추출 시 빈칸 처리 방어
-                                let arrivalTime = flightInfo.estimatedDateTime || flightInfo.scheduleDateTime || "2400";
-                                if (typeof arrivalTime === 'string' && arrivalTime.trim() === "") {
-                                    arrivalTime = flightInfo.scheduleDateTime || "2400";
-                                }
-                                
-                                if (currentTime >= arrivalTime) {
-                                    passengerText = "내국인 0명 / 외국인 0명"; // 도착 시간이 지났음
-                                } else {
-                                    passengerText = "착륙 전"; // 아직 도착 안 함
-                                }
-                            } else {
-                                passengerText = "내국인 0명 / 외국인 0명"; 
-                            }
-                        } catch (e) {
-                            passengerText = "내국인 0명 / 외국인 0명";
-                        }
+                        let kr = targetData.korean || targetData.krnCnt || targetData.koreanCount || 0;
+                        let fr = targetData.foreigner || targetData.frnCnt || targetData.foreignerCount || 0;
+                        
+                        passengerStr = `내국인 ${kr}명 / 외국인 ${fr}명`;
                     }
                     
-                    // 화면 출력
                     const cardHtml = `
                         <div class="result-card">
                             <div class="flight-info">
@@ -172,13 +111,13 @@
                                     <span class="value">${flightNo}</span>
                                 </div>
                                 <div class="info-item" style="text-align: right;">
-                                    <span class="label">입국장</span>
-                                    <span class="value">${gate}</span>
+                                    <span class="label">입국장 구역</span>
+                                    <span class="value" style="color: #60a5fa;">${gate}</span>
                                 </div>
                             </div>
                             <div class="passenger-box">
                                 <div class="passenger-label">탑승객 (예상)</div>
-                                <div class="passenger-count">${passengerText}</div>
+                                <div class="passenger-count">${passengerStr}</div>
                             </div>
                         </div>
                     `;
@@ -186,7 +125,7 @@
                 }
             } catch (e) {
                 console.error(e);
-                badge.innerText = "데이터 통신 중 오류가 발생했습니다.";
+                badge.innerText = "데이터 처리 중 공공서버 오류가 발생했습니다.";
             } finally {
                 loading.style.display = "none";
             }
