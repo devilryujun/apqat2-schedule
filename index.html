@@ -33,19 +33,17 @@
     </div>
 
     <script>
-        // ★★★ 매주 스케줄이 나오면 여기만 요일별로 수정해 주세요! ★★★
-        // 비행기가 없는 날은 빈 칸 [] 으로 두시면 됩니다.
+        // ★★★ 주의: 비행기 이름은 반드시 따옴표(" ")로 감싸고, 쉼표(,)로 구분해 주세요! ★★★
         const weeklySchedule = {
-            "월": ["KE442", "OZ732"],
-            "화": ["VN416", "7C1102"],
-            "수": ["KE123"],
-            "목": ["OZ456", "VJ881", "TW101"],
+            "월": [],
+            "화": [],
+            "수": [],
+            "목": [],
             "금": ["KE842", "KE832", "OZ304", "KE116", "KE2042", "OZ340", "KE834"],
             "토": ["KE498", "OZ740", "GA878", "KE832", "OZ304", "KL855", "OZ340", "LJ350"],
-            "일": ["OZ568", "KE428", "KE656", "OZ302", "KE964", "KE116", "OZ340", KE834"]
+            "일": ["OZ568", "KE428", "KE656", "OZ302", "KE964", "KE116", "OZ340", "KE834"]
         };
         
-        // 발급받으신 API 키
         const API_KEY = "JcfNlXoduLGoJddjGco5oTFV3eEWqmoP4fZsQ0mDYZgRQBANOV3qUTfqV0z2hkEojn7K5eNYr3AIkzKvhJRs4w%3D%3D";
         
         async function fetchFlightData() {
@@ -53,65 +51,66 @@
             const loading = document.getElementById("loading");
             const badge = document.getElementById("today-badge");
             
-            // 1. 오늘이 무슨 요일인지 자동으로 알아내기
-            const days = ["일", "월", "화", "수", "목", "금", "토"];
-            const today = new Date();
-            const todayDayStr = days[today.getDay()]; // 예: "수"
-            
-            // 2. 요일 뱃지 업데이트
-            badge.innerText = `오늘은 ${todayDayStr}요일 입니다 📅`;
-            
-            // 3. 오늘의 대상 비행기 목록 가져오기
-            const targetFlights = weeklySchedule[todayDayStr] || [];
-            
-            if (targetFlights.length === 0) {
-                loading.style.display = "none";
-                container.innerHTML = `<div style="text-align:center; color:#9ca3af; margin-top:30px;">오늘은 일제검사 대상편이 없습니다.</div>`;
-                return;
-            }
-            
-            // 4. 오늘의 비행기들만 API 조회 실행
-            for (let flightNo of targetFlights) {
-                let url = `http://apis.data.go.kr/B551177/StatusOfPassengerFlightsDeOdp/getPassengerArrivalsDeOdp?serviceKey=${API_KEY}&type=json&flight_id=${flightNo}`;
+            try {
+                const days = ["일", "월", "화", "수", "목", "금", "토"];
+                const today = new Date();
+                const todayDayStr = days[today.getDay()];
                 
-                try {
-                    const response = await fetch(url);
-                    const data = await response.json();
-                    
-                    let gate = "확인중";
-                    let passenger = "착륙 전";
-                    
-                    if(data && data.response && data.response.body && data.response.body.items && data.response.body.items.length > 0) {
-                        const targetData = data.response.body.items[0];
-                        gate = targetData.gatenumber || "확인중";
-                        passenger = targetData.passengerCount || "집계중";
-                    }
-                    
-                    const cardHtml = `
-                        <div class="result-card">
-                            <div class="flight-info">
-                                <div class="info-item">
-                                    <span class="label">도착편명</span>
-                                    <span class="value">${flightNo}</span>
-                                </div>
-                                <div class="info-item" style="text-align: right;">
-                                    <span class="label">입국장</span>
-                                    <span class="value">${gate}</span>
-                                </div>
-                            </div>
-                            <div class="passenger-box">
-                                <div class="passenger-label">탑승객 (예상)</div>
-                                <div class="passenger-count">${passenger}${passenger === '착륙 전' || passenger === '집계중' ? '' : '명'}</div>
-                            </div>
-                        </div>
-                    `;
-                    container.innerHTML += cardHtml;
-                    
-                } catch(error) {
-                    console.error(`${flightNo} 조회 실패:`, error);
+                badge.innerText = `오늘은 ${todayDayStr}요일 입니다 📅`;
+                
+                const targetFlights = weeklySchedule[todayDayStr] || [];
+                
+                if (targetFlights.length === 0) {
+                    loading.style.display = "none";
+                    container.innerHTML = `<div style="text-align:center; color:#9ca3af; margin-top:30px;">오늘은 일제검사 대상편이 없습니다.</div>`;
+                    return;
                 }
+                
+                for (let flightNo of targetFlights) {
+                    // ★ http -> https 로 수정 완료 ★
+                    let url = `https://apis.data.go.kr/B551177/StatusOfPassengerFlightsDeOdp/getPassengerArrivalsDeOdp?serviceKey=${API_KEY}&type=json&flight_id=${flightNo}`;
+                    
+                    try {
+                        const response = await fetch(url);
+                        const data = await response.json();
+                        
+                        let gate = "확인중";
+                        let passenger = "착륙 전";
+                        
+                        if(data && data.response && data.response.body && data.response.body.items && data.response.body.items.length > 0) {
+                            const targetData = data.response.body.items[0];
+                            gate = targetData.gatenumber || "확인중";
+                            passenger = targetData.passengerCount || "집계중";
+                        }
+                        
+                        const cardHtml = `
+                            <div class="result-card">
+                                <div class="flight-info">
+                                    <div class="info-item">
+                                        <span class="label">도착편명</span>
+                                        <span class="value">${flightNo}</span>
+                                    </div>
+                                    <div class="info-item" style="text-align: right;">
+                                        <span class="label">입국장</span>
+                                        <span class="value">${gate}</span>
+                                    </div>
+                                </div>
+                                <div class="passenger-box">
+                                    <div class="passenger-label">탑승객 (예상)</div>
+                                    <div class="passenger-count">${passenger}${passenger === '착륙 전' || passenger === '집계중' ? '' : '명'}</div>
+                                </div>
+                            </div>
+                        `;
+                        container.innerHTML += cardHtml;
+                    } catch(error) {
+                        console.error(`${flightNo} 조회 실패:`, error);
+                    }
+                }
+            } catch (e) {
+                badge.innerText = "데이터 처리 중 문법 오류가 발생했습니다.";
+            } finally {
+                loading.style.display = "none";
             }
-            loading.style.display = "none";
         }
 
         window.onload = fetchFlightData;
