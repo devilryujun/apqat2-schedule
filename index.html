@@ -42,7 +42,7 @@
     </div>
 
     <script>
-        // ★ T2로 들어오는 편명만 적으세요 (아시아나도 T2니까 포함!)
+        // ★ T2로 들어오는 편명만 적으세요
         const schedulePlan = {
             "월": ["OZ756", "OZ762", "KE656", "KE832", "KE116", "KE856", "KE2042", "OZ340", "LJ350"], 
             "화": ["OZ734", "OZ740", "OZ574", "KE842", "KE832", "KE480", "DL197", "KE836", "KE834"], 
@@ -53,6 +53,7 @@
             "일": ["OZ568", "KE428", "KE656", "OZ302", "KE964", "KE116", "OZ340", "KE834"]
         };
 
+        // 주어진 Encoding 키를 원형 그대로 사용
         const API_KEY = "JcfNlXoduLGoJddjGco5oTFV3eEWqmoP4fZsQ0mDYZgRQBANOV3qUTfqV0z2hkEojn7K5eNYr3AIkzKvhJRs4w%3D%3D";
 
         async function fetchData() {
@@ -75,8 +76,11 @@
                     return;
                 }
 
-                // ★★★ 여기에 사진에서 직접 확인해주신 '진짜' 주소를 넣었습니다. ★★★
-                const endpoint = `https://apis.data.go.kr/B551177/StatusOfArrivals?serviceKey=${API_KEY}&type=json&terno=T2&numOfRows=1000`;
+                // ★ 인코딩 꼬임 방지: 변수를 따로 조합하지 않고 문자열로 그대로 합칩니다.
+                // 가이드 문서 기준 오퍼레이션(getArrivalsCongestion) 적용
+                const endpoint = "https://apis.data.go.kr/B551177/StatusOfArrivals/getArrivalsCongestion" +
+                                 "?serviceKey=" + API_KEY + 
+                                 "&type=json&terno=T2&numOfRows=1000";
                 
                 const response = await fetch(endpoint);
                 const textData = await response.text();
@@ -85,40 +89,33 @@
 
                 const json = JSON.parse(textData);
                 
+                // 에러 코드 처리
                 if (json.response && json.response.header && json.response.header.resultCode !== "00") {
                     throw new Error(`API 에러: ${json.response.header.resultMsg}`);
                 }
 
-                const allDataString = JSON.stringify(json);
+                // 가이드 문서 기준 응답 변수 적용: flightid, korean, foreigner, entrygate
+                const items = json.response?.body?.items || [];
 
                 targetFlights.forEach(flight => {
-                    const flightRegex = new RegExp(`{[^{}]*${flight}[^{}]*}`, 'gi');
-                    const match = allDataString.match(flightRegex);
+                    // 편명(flightid) 매칭
+                    const matchedItem = items.find(item => item.flightid && item.flightid.toUpperCase().includes(flight.toUpperCase()));
 
-                    if (match && match.length > 0) {
-                        try {
-                            const foundObj = JSON.parse(match[0]);
-                            
-                            const gate = foundObj.cgntArea || foundObj.entGate || foundObj.gateNo || "미확인";
-                            const kr = foundObj.korean || foundObj.krnCnt || 0;
-                            const fr = foundObj.foreigner || foundObj.frnCnt || 0;
+                    if (matchedItem) {
+                        const gate = matchedItem.entrygate || "미확인";
+                        // 소수점으로 오는 데이터(1.0)를 정수로 변환
+                        const kr = parseInt(matchedItem.korean || 0, 10);
+                        const fr = parseInt(matchedItem.foreigner || 0, 10);
 
-                            results.innerHTML += `
-                                <div class="card" style="border-left: 4px solid #3b82f6;">
-                                    <div class="card-header">
-                                        <span class="flight-no">${flight}</span>
-                                        <span class="gate-info">${gate} 입국장</span>
-                                    </div>
-                                    <div class="p-count">내국인 ${kr}명 / 외국인 ${fr}명</div>
+                        results.innerHTML += `
+                            <div class="card" style="border-left: 4px solid #3b82f6;">
+                                <div class="card-header">
+                                    <span class="flight-no">${flight}</span>
+                                    <span class="gate-info">${gate} 입국장</span>
                                 </div>
-                            `;
-                        } catch(e) {
-                            results.innerHTML += `
-                                <div class="card">
-                                    <div class="card-header"><span class="flight-no">${flight}</span></div>
-                                    <div class="error-text">데이터 해석 오류 발생</div>
-                                </div>`;
-                        }
+                                <div class="p-count">내국인 ${kr}명 / 외국인 ${fr}명</div>
+                            </div>
+                        `;
                     } else {
                         results.innerHTML += `
                             <div class="card" style="opacity: 0.6;">
