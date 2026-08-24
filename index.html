@@ -3,148 +3,146 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>T2 검역 관제 대시보드 (Pro)</title>
+    <title>T2 검역 관제 대시보드</title>
     <style>
         :root { --bg-color: #0f1115; --card-bg: #1a1d24; --accent-blue: #3b82f6; --text-main: #f3f4f6; --text-sub: #9ca3af; }
         * { box-sizing: border-box; }
-        body { background-color: var(--bg-color); color: var(--text-main); font-family: 'Pretendard', 'Malgun Gothic', sans-serif; margin: 0; padding: 20px; }
-        .container { max-width: 800px; margin: 0 auto; }
-        .header { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 24px; padding-bottom: 16px; border-bottom: 1px solid #333; }
-        .title-group h1 { font-size: 24px; margin: 0 0 8px 0; color: #fff; letter-spacing: -0.5px; }
-        .title-group p { margin: 0; font-size: 14px; color: var(--text-sub); }
-        .last-update { font-size: 13px; color: #10b981; font-weight: bold; }
-        
-        .btn { width: 100%; padding: 16px; background-color: var(--accent-blue); color: white; border: none; border-radius: 12px; font-weight: 600; font-size: 16px; cursor: pointer; transition: 0.2s; box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3); margin-bottom: 24px; }
-        .btn:active { transform: translateY(2px); }
-        
-        .section-title { font-size: 16px; color: #fff; margin-bottom: 12px; padding-left: 5px; border-left: 4px solid var(--accent-blue); }
-        .grid-layout { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; margin-bottom: 30px; }
-        .card { background-color: var(--card-bg); border-radius: 16px; padding: 20px; border: 1px solid #2d313a; }
-        .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
-        .flight-no { font-size: 22px; font-weight: 800; color: #fff; }
-        .gate-badge { background: #374151; padding: 4px 10px; border-radius: 6px; font-size: 13px; font-weight: 600; color: #60a5fa; }
-        
-        .data-row { display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 15px; }
-        .data-row .label { color: var(--text-sub); }
-        .data-row .value { font-weight: 700; color: #fff; }
-        .total-box { margin-top: 16px; padding-top: 16px; border-top: 1px dashed #444; display: flex; justify-content: space-between; align-items: center; }
-        .total-value { font-size: 24px; font-weight: 900; color: #34d399; }
-        
+        body { background-color: var(--bg-color); color: var(--text-main); font-family: 'Malgun Gothic', sans-serif; margin: 0; padding: 20px; }
+        .container { max-width: 600px; margin: 0 auto; }
+        .header { margin-bottom: 20px; padding-bottom: 10px; border-bottom: 1px solid #333; }
+        .title { font-size: 22px; font-weight: bold; color: #fff; margin-bottom: 5px; }
+        .sub-title { font-size: 14px; color: var(--text-sub); }
+        .btn { width: 100%; padding: 15px; background-color: var(--accent-blue); color: white; border: none; border-radius: 8px; font-weight: bold; font-size: 16px; margin-bottom: 20px; }
+        .card { background-color: var(--card-bg); border-radius: 12px; padding: 20px; border: 1px solid #2d313a; margin-bottom: 15px; }
+        .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; border-bottom: 1px solid #333; padding-bottom: 10px; }
+        .flight-no { font-size: 20px; font-weight: bold; color: #fff; }
+        .gate-info { background: #374151; padding: 4px 10px; border-radius: 6px; font-size: 13px; color: #60a5fa; }
+        .p-count { font-size: 22px; font-weight: bold; color: #34d399; margin-top: 10px; text-align: center; }
         .error-text { color: #f59e0b; font-size: 14px; text-align: center; margin-top: 10px; }
-        #loading-overlay { display: none; text-align: center; padding: 20px; color: var(--text-sub); }
+        #loading { display: none; text-align: center; color: var(--text-sub); margin-bottom: 20px; }
+        .raw-data-box { background: #000; color: #0f0; padding: 10px; font-family: monospace; font-size: 11px; margin-top: 20px; overflow-x: auto; display: none; }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="header">
-            <div class="title-group">
-                <h1>T2 검역 관제 대시보드</h1>
-                <p id="today-info">오늘의 일제검사 대상편을 동기화합니다.</p>
-            </div>
-            <div class="last-update" id="last-update">업데이트 대기중</div>
+            <div class="title">T2 일제검사 승객 자동조회</div>
+            <div class="sub-title" id="today-badge">오늘의 요일을 확인 중입니다...</div>
         </div>
 
-        <button class="btn" onclick="executeFetch()">🔄 실시간 관제 동기화</button>
-        <div id="loading-overlay">안전한 통신망을 통해 공공데이터를 수신 중입니다...</div>
+        <button class="btn" onclick="fetchData()">🔄 실시간 동기화</button>
+        <div id="loading">데이터를 수신하고 구조를 해독 중입니다...</div>
         
-        <div class="section-title">📌 나의 타겟 비행기</div>
-        <div class="grid-layout" id="target-grid"></div>
+        <div id="results"></div>
 
-        <div class="section-title" style="border-left-color: #10b981;">📡 (증명용) 현재 T2 실제 수신 데이터 Top 5</div>
-        <div class="grid-layout" id="live-grid"></div>
+        <!-- 만약 이번에도 0명 뜨면, 이 체크박스를 눌러서 서버 원본 데이터를 뜯어보세요 -->
+        <label style="color:#555; font-size:12px; margin-top:30px; display:block;">
+            <input type="checkbox" onchange="document.getElementById('raw-box').style.display = this.checked ? 'block' : 'none'"> 디버그(원본 데이터 보기)
+        </label>
+        <pre id="raw-box" class="raw-data-box"></pre>
     </div>
 
     <script>
-        // ★ T2로 들어오는 비행기만 적으셔야 합니다! (T1 아시아나는 안 잡힙니다)
-        const targetList = ["KE498", "OZ740", "GA878", "KE832", "OZ304", "KL855"];
+        // ★ 질문자님의 3교대 패턴을 위해 월~일 요일별 스케줄 복구!
+        const schedulePlan = {
+            "월": ["OZ756", "OZ762", "KE656", "KE832", "KE116", "KE856", "KE2042", "OZ340", "LJ350"], 
+            "화": ["OZ734", "OZ740", "OZ574", "KE842", "KE832", "KE480", "DL197", "KE836", "KE834"], 
+            "수": ["KE492", "OZ578", "KE842", "KE134", "KE116", "KE2042", "OZ340", "KE156"], 
+            "목": ["KE626", "KE690", "GA878", "KE842", "KE832", "KE882", "KE116", "OZ512", "KE156"], 
+            "금": ["LJ038", "OZ736", "KE842", "KE832", "KE480", "KE116", "KE2042", "OZ340", "KE834"], 
+            "토": ["KE498", "OZ740", "GA878", "KE832", "OZ304", "KL855", "OZ340", "LJ350"],
+            "일": ["OZ568", "KE428", "KE656", "OZ302", "KE964", "KE116", "OZ340", "KE834"]
+        };
+
         const API_KEY = "JcfNlXoduLGoJddjGco5oTFV3eEWqmoP4fZsQ0mDYZgRQBANOV3qUTfqV0z2hkEojn7K5eNYr3AIkzKvhJRs4w%3D%3D";
 
-        const normalize = (str) => String(str).replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
-
-        async function executeFetch() {
-            const targetGrid = document.getElementById("target-grid");
-            const liveGrid = document.getElementById("live-grid");
-            const loader = document.getElementById("loading-overlay");
-            const updateTime = document.getElementById("last-update");
+        async function fetchData() {
+            const results = document.getElementById("results");
+            const loader = document.getElementById("loading");
+            const rawBox = document.getElementById("raw-box");
             
-            targetGrid.innerHTML = "";
-            liveGrid.innerHTML = "";
+            results.innerHTML = "";
             loader.style.display = "block";
-            updateTime.innerText = "통신 중...";
 
             try {
-                const endpoint = `https://apis.data.go.kr/B551177/StatusOfArrivals/getArrivalsCongestion?serviceKey=${encodeURIComponent(decodeURIComponent(API_KEY))}&type=json&terno=T2&numOfRows=1000`;
-                const response = await fetch(endpoint);
-                const json = await response.json();
+                const dayStr = ["일", "월", "화", "수", "목", "금", "토"][new Date().getDay()];
+                document.getElementById("today-badge").innerText = `오늘은 ${dayStr}요일 입니다 📅`;
                 
-                const apiItems = json?.response?.body?.items || [];
+                const targetFlights = schedulePlan[dayStr] || [];
+                
+                if (targetFlights.length === 0) {
+                    results.innerHTML = "<div style='color:#aaa;'>오늘 스케줄에 등록된 일제검사 대상편이 없습니다.</div>";
+                    loader.style.display = "none";
+                    return;
+                }
 
-                // 1. 내가 찾고자 하는 타겟 비행기 처리
-                targetList.forEach(flightNo => {
-                    const normTarget = normalize(flightNo);
-                    const matched = apiItems.find(item => Object.values(item).some(val => normalize(val).includes(normTarget)));
+                // API 통신 시도
+                const endpoint = `https://apis.data.go.kr/B551177/StatusOfArrivals/getArrivalsCongestion?serviceKey=${API_KEY}&type=json&terno=T2&numOfRows=1000`;
+                const response = await fetch(endpoint);
+                const textData = await response.text();
+                
+                // 원본 데이터 박제 (디버그용)
+                rawBox.innerText = textData;
 
-                    if (matched) {
-                        const gate = matched.cgntArea || matched.entGate || "미확인";
-                        const krn = Number(matched.korean || matched.krnCnt || 0);
-                        const frn = Number(matched.foreigner || matched.frnCnt || 0);
-                        
-                        targetGrid.innerHTML += createCard(flightNo, gate, krn, frn, true);
+                const json = JSON.parse(textData);
+                
+                // 에러 코드 처리
+                if (json.response && json.response.header && json.response.header.resultCode !== "00") {
+                    throw new Error(`API 에러: ${json.response.header.resultMsg}`);
+                }
+
+                // 무식하게 모든 데이터를 하나의 문자열(String)로 다 뽑아낸 다음 쪼갭니다.
+                // 이래야 데이터 구조(배열이든 객체든) 상관없이 편명과 숫자를 잡아낼 수 있습니다.
+                const allDataString = JSON.stringify(json);
+
+                targetFlights.forEach(flight => {
+                    // 정규식으로 해당 편명이 포함된 덩어리 주변을 싹 다 긁어옵니다.
+                    // 예: "flightId":"KE2042" ... "korean":160 ... "foreigner":59
+                    const flightRegex = new RegExp(`{[^{}]*${flight}[^{}]*}`, 'gi');
+                    const match = allDataString.match(flightRegex);
+
+                    if (match && match.length > 0) {
+                        try {
+                            const foundObj = JSON.parse(match[0]);
+                            
+                            // 어떤 속성명으로 오든 다 잡아내도록 방어적으로 변수 세팅
+                            const gate = foundObj.cgntArea || foundObj.entGate || foundObj.gateNo || "미확인";
+                            const kr = foundObj.korean || foundObj.krnCnt || 0;
+                            const fr = foundObj.foreigner || foundObj.frnCnt || 0;
+
+                            results.innerHTML += `
+                                <div class="card" style="border-left: 4px solid #3b82f6;">
+                                    <div class="card-header">
+                                        <span class="flight-no">${flight}</span>
+                                        <span class="gate-info">${gate} 입국장</span>
+                                    </div>
+                                    <div class="p-count">내국인 ${kr}명 / 외국인 ${fr}명</div>
+                                </div>
+                            `;
+                        } catch(e) {
+                            results.innerHTML += `
+                                <div class="card">
+                                    <div class="card-header"><span class="flight-no">${flight}</span></div>
+                                    <div class="error-text">데이터 해석 오류 발생</div>
+                                </div>`;
+                        }
                     } else {
-                        // 데이터가 없을 때 원인을 정확히 짚어줍니다.
-                        targetGrid.innerHTML += `
-                            <div class="card" style="opacity: 0.7;">
-                                <div class="card-header"><span class="flight-no">${flightNo}</span></div>
-                                <div class="error-text">⚠️ T1 소속이거나, ±2시간 범위를 벗어나<br>서버에 데이터가 존재하지 않습니다.</div>
-                            </div>`;
+                        results.innerHTML += `
+                            <div class="card" style="opacity: 0.6;">
+                                <div class="card-header"><span class="flight-no">${flight}</span></div>
+                                <div class="error-text">⚠️ T2 ±2시간 범위를 벗어나<br>데이터가 없습니다 (또는 통과완료)</div>
+                            </div>
+                        `;
                     }
                 });
 
-                // 2. 실제 데이터가 들어오고 있다는 증명 (상위 5개 무작위 표출)
-                if (apiItems.length > 0) {
-                    apiItems.slice(0, 5).forEach(item => {
-                        const fNo = item.flightId || "편명모름";
-                        const gate = item.cgntArea || item.entGate || "미확인";
-                        const krn = Number(item.korean || item.krnCnt || 0);
-                        const frn = Number(item.foreigner || item.frnCnt || 0);
-                        liveGrid.innerHTML += createCard(fNo, gate, krn, frn, false);
-                    });
-                } else {
-                    liveGrid.innerHTML = "<div style='color:#9ca3af;'>현재 T2에 도착 예정인 비행기가 아예 없습니다.</div>";
-                }
-
-                const now = new Date();
-                updateTime.innerText = `최종 갱신: ${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}`;
-
             } catch (error) {
-                targetGrid.innerHTML = `<div style="color: #ef4444;">네트워크 또는 공공 포털 서버 오류입니다.</div>`;
-                updateTime.innerText = "업데이트 실패";
+                results.innerHTML = `<div style="color: #ef4444; padding: 15px; border: 1px solid #ef4444; border-radius: 8px;"><b>연결 실패:</b><br>${error.message}</div>`;
             } finally {
                 loader.style.display = "none";
             }
         }
-
-        function createCard(fNo, gate, krn, frn, isTarget) {
-            const statusColor = (krn + frn === 0) ? "#f59e0b" : "#34d399";
-            const statusText = (krn + frn === 0) ? "집계 대기중" : "실시간 관측중";
-            
-            return `
-                <div class="card" style="${isTarget ? 'border-color: #3b82f6;' : ''}">
-                    <div class="card-header">
-                        <span class="flight-no">${fNo}</span>
-                        <span class="gate-badge">${gate} 구역</span>
-                    </div>
-                    <div class="data-row"><span class="label">내국인</span><span class="value">${krn} 명</span></div>
-                    <div class="data-row"><span class="label">외국인</span><span class="value">${frn} 명</span></div>
-                    <div class="total-box">
-                        <span class="label" style="color:${statusColor}; font-weight:bold;">${statusText}</span>
-                        <span class="total-value">${krn + frn} 명</span>
-                    </div>
-                </div>
-            `;
-        }
-
-        window.onload = executeFetch;
+        window.onload = fetchData;
     </script>
 </body>
 </html>
