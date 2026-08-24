@@ -26,24 +26,23 @@
 <body>
     <div class="container">
         <div class="header">
-            <div class="title">T2 일제검사 승객 자동조회</div>
-            <div class="sub-title" id="today-badge">오늘의 요일을 확인 중입니다...</div>
+            <div class="title">T2 일제검사 승객 실시간 조회</div>
+            <div class="sub-title" id="today-badge">데이터 통신 준비 중...</div>
         </div>
 
         <button class="btn" onclick="fetchData()">🔄 실시간 동기화</button>
-        <div id="loading">데이터를 수신하고 구조를 해독 중입니다...</div>
+        <div id="loading">안전한 통신망을 통해 공공데이터를 수신 중입니다...</div>
         
         <div id="results"></div>
 
-        <!-- 만약 이번에도 0명 뜨면, 이 체크박스를 눌러서 서버 원본 데이터를 뜯어보세요 -->
         <label style="color:#555; font-size:12px; margin-top:30px; display:block;">
-            <input type="checkbox" onchange="document.getElementById('raw-box').style.display = this.checked ? 'block' : 'none'"> 디버그(원본 데이터 보기)
+            <input type="checkbox" onchange="document.getElementById('raw-box').style.display = this.checked ? 'block' : 'none'"> 데이터 구조 뜯어보기 (디버그)
         </label>
         <pre id="raw-box" class="raw-data-box"></pre>
     </div>
 
     <script>
-        // ★ 질문자님의 3교대 패턴을 위해 월~일 요일별 스케줄 복구!
+        // ★ T2로 들어오는 편명만 적으세요 (아시아나도 T2니까 포함!)
         const schedulePlan = {
             "월": ["OZ756", "OZ762", "KE656", "KE832", "KE116", "KE856", "KE2042", "OZ340", "LJ350"], 
             "화": ["OZ734", "OZ740", "OZ574", "KE842", "KE832", "KE480", "DL197", "KE836", "KE834"], 
@@ -66,7 +65,7 @@
 
             try {
                 const dayStr = ["일", "월", "화", "수", "목", "금", "토"][new Date().getDay()];
-                document.getElementById("today-badge").innerText = `오늘은 ${dayStr}요일 입니다 📅`;
+                document.getElementById("today-badge").innerText = `오늘은 ${dayStr}요일 (T2 전용) 📅`;
                 
                 const targetFlights = schedulePlan[dayStr] || [];
                 
@@ -76,28 +75,23 @@
                     return;
                 }
 
-                // API 통신 시도
-                const endpoint = `https://apis.data.go.kr/B551177/StatusOfArrivals/getArrivalsCongestion?serviceKey=${API_KEY}&type=json&terno=T2&numOfRows=1000`;
+                // ★★★ 여기에 사진에서 직접 확인해주신 '진짜' 주소를 넣었습니다. ★★★
+                const endpoint = `https://apis.data.go.kr/B551177/StatusOfArrivals?serviceKey=${API_KEY}&type=json&terno=T2&numOfRows=1000`;
+                
                 const response = await fetch(endpoint);
                 const textData = await response.text();
                 
-                // 원본 데이터 박제 (디버그용)
-                rawBox.innerText = textData;
+                rawBox.innerText = textData; // 에러 방지용 박제
 
                 const json = JSON.parse(textData);
                 
-                // 에러 코드 처리
                 if (json.response && json.response.header && json.response.header.resultCode !== "00") {
                     throw new Error(`API 에러: ${json.response.header.resultMsg}`);
                 }
 
-                // 무식하게 모든 데이터를 하나의 문자열(String)로 다 뽑아낸 다음 쪼갭니다.
-                // 이래야 데이터 구조(배열이든 객체든) 상관없이 편명과 숫자를 잡아낼 수 있습니다.
                 const allDataString = JSON.stringify(json);
 
                 targetFlights.forEach(flight => {
-                    // 정규식으로 해당 편명이 포함된 덩어리 주변을 싹 다 긁어옵니다.
-                    // 예: "flightId":"KE2042" ... "korean":160 ... "foreigner":59
                     const flightRegex = new RegExp(`{[^{}]*${flight}[^{}]*}`, 'gi');
                     const match = allDataString.match(flightRegex);
 
@@ -105,7 +99,6 @@
                         try {
                             const foundObj = JSON.parse(match[0]);
                             
-                            // 어떤 속성명으로 오든 다 잡아내도록 방어적으로 변수 세팅
                             const gate = foundObj.cgntArea || foundObj.entGate || foundObj.gateNo || "미확인";
                             const kr = foundObj.korean || foundObj.krnCnt || 0;
                             const fr = foundObj.foreigner || foundObj.frnCnt || 0;
